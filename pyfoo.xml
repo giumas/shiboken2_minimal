@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<typesystem package="pyfoo">
+    <load-typesystem name="QtWidgets/typesystem_widgets.xml" generate="no"/>
+    <object-type name="MainWindow"/>
+</typesystem>

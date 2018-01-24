@@ -1,0 +1,19 @@
+[generator-project]
+
+generator-set = shiboken
+header-file = @CMAKE_CURRENT_SOURCE_DIR@/pyfoo.h
+typesystem-file = @CMAKE_CURRENT_SOURCE_DIR@/pyfoo.xml
+debug-level = full
+
+output-directory = @CMAKE_CURRENT_BINARY_DIR@/wrap
+
+include-path = @foo_SOURCE_DIR@;@Qt5Widgets_INCLUDE_DIRS@
+
+typesystem-paths = @PYSIDE_TYPESYSTEMS@
+
+enable-parent-ctor-heuristic
+enable-pyside-extensions
+use-isnull-as-nb_nonzero
+enable-return-value-heuristic
+
+avoid-protected-hack
