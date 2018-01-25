@@ -18,7 +18,8 @@ static const char defaultScript[] =
 
 MainWindow::MainWindow()
 {
-    setWindowTitle(tr("Scriptable Application"));
+    setWindowTitle("FooPy MainWindow");
+    setMinimumSize(400, 260);
 
     QMenu *fileMenu = menuBar()->addMenu(tr("&File"));
     const QIcon quitIcon = QIcon::fromTheme(QStringLiteral("application-exit"));

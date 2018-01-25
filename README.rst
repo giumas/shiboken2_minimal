@@ -44,15 +44,23 @@ Steps
    cmake -G "Visual Studio 14 2015 Win64" C:\shiboken2_minimal
 
 - Open *pyfoo.sln* and build in *Release* mode.  
-   
+
+- Test the binding by running:
+
+::
+
+   python example.py
+
    
 Known issues
 ------------
 
-- Errors when compiling *pyfoo*:
+- If you get the following errors during *pyfoo* compilation, the current workaround is to manually add in *mainwindow_wrapper.h* the missing declaration:
 
 ::
 
     3> c:\shiboken2_minimal_build\wrap\pyfoo\mainwindow_wrapper.cpp(1378): error C2509: 'metaObject': member function not declared in 'MainWindowWrapper'
     3> c:\shiboken2_minimal_build\wrap\pyfoo\mainwindow_wrapper.h(10): note: see declaration of 'MainWindowWrapper'
+    
+
     

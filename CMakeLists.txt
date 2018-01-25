@@ -30,10 +30,8 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(LIBRARY_OUTPUT_PATH  "${CMAKE_BINARY_DIR}/out")
 set(EXECUTABLE_OUTPUT_PATH  "${CMAKE_BINARY_DIR}/out")
 
-# create the C++ library
+# C++ source files to wrap
 set(foo_SRC mainwindow.h mainwindow.cpp)
-add_library(foo SHARED ${foo_SRC})
-target_link_libraries(foo ${Qt5Widgets_LIBRARIES})
 
 # call shiboken2 to create the wrapping code
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/pyfoo.txt.in" "${CMAKE_CURRENT_BINARY_DIR}/pyfoo.txt" @ONLY)
@@ -44,18 +42,19 @@ set(pyfoo_SRC
     ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/mainwindow_wrapper.cpp
     )
 add_custom_command( COMMAND ${SHIBOKEN_BINARY} --project-file=${CMAKE_CURRENT_BINARY_DIR}/pyfoo.txt
-                    DEPENDS foo ${CMAKE_CURRENT_BINARY_DIR}/pyfoo.txt
+                    DEPENDS ${foo_SRC}
                     OUTPUT ${pyfoo_SRC}
                     )
-
+    
 # build the python module
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo)
-add_library(pyfoo SHARED ${pyfoo_SRC})
-target_link_libraries(pyfoo foo ${SHIBOKEN_PYTHON_LIBRARIES} ${SHIBOKEN_LIBRARY} ${PYSIDE_LIBRARY})
+add_library(pyfoo SHARED  ${foo_SRC} ${pyfoo_SRC})
+target_link_libraries(pyfoo ${Qt5Widgets_LIBRARIES} ${SHIBOKEN_PYTHON_LIBRARIES} ${SHIBOKEN_LIBRARY} ${PYSIDE_LIBRARY})
 if(WIN32)
     set_property(TARGET pyfoo PROPERTY SUFFIX ".pyd")
 endif()
 
-# create a minimal example just to test the C++ library (OPTIONAL)
-add_executable(main WIN32 main.cpp)
-target_link_libraries(main foo)
+# python example
+add_custom_command(     TARGET pyfoo POST_BUILD 
+                        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/example.py
+                                                         ${CMAKE_BINARY_DIR}/out/${CMAKE_CFG_INTDIR}/example.py )
