@@ -31,13 +31,15 @@ set(LIBRARY_OUTPUT_PATH  "${CMAKE_BINARY_DIR}/out")
 set(EXECUTABLE_OUTPUT_PATH  "${CMAKE_BINARY_DIR}/out")
 
 # C++ source files to wrap
-set(foo_SRC mainwindow.h mainwindow.cpp)
+set(foo_SRC mainwindow.h mainwindow.cpp application.h application.cpp)
 
 # call shiboken2 to create the wrapping code
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/pyfoo.txt.in" "${CMAKE_CURRENT_BINARY_DIR}/pyfoo.txt" @ONLY)
 set(pyfoo_SRC
     ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/pyfoo_python.h
     ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/pyfoo_module_wrapper.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/application_wrapper.h
+    ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/application_wrapper.cpp    
     ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/mainwindow_wrapper.h
     ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/mainwindow_wrapper.cpp
     )
