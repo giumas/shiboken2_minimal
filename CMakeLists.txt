@@ -26,7 +26,6 @@ include_directories(${PYSIDE_INCLUDE_DIR}/QtCore)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}")
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 include( GenerateExportHeader )  # Function for generation of export macros for libraries 
