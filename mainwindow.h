@@ -2,8 +2,9 @@
 #define MAINWINDOW_H
 
 #include <QtWidgets/QMainWindow>
+#include "foo_export.h"
 
-class MainWindow : public QMainWindow
+class FOO_EXPORT MainWindow : public QMainWindow
 {
     Q_OBJECT
 public:
