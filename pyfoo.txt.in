@@ -7,7 +7,7 @@ debug-level = full
 
 output-directory = @CMAKE_CURRENT_BINARY_DIR@/wrap
 
-include-path = @foo_SOURCE_DIR@;@Qt5Widgets_INCLUDE_DIRS@
+include-paths = @foo_SOURCE_DIR@;@Qt5Widgets_INCLUDE_DIRS@
 
 typesystem-paths = @PYSIDE_TYPESYSTEMS@
 

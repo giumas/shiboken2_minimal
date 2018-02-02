@@ -1,66 +1,173 @@
-project(pyfoo)
-
 cmake_minimum_required(VERSION 3.1)
 cmake_policy(VERSION 3.1)
 
-find_package(Shiboken2 2.0.0 REQUIRED)
-find_package(PySide2 2.0.0 REQUIRED)
-find_package(Qt5 5.6 REQUIRED COMPONENTS Widgets)
-
-add_definitions(${Qt5Widgets_DEFINITIONS})
-add_definitions(-DQT_NO_KEYWORDS)
-
-message(STATUS "qt include dir: ${Qt5Widgets_INCLUDE_DIRS}")
-message(STATUS "libshiboken include dir: ${SHIBOKEN_INCLUDE_DIR}")
-message(STATUS "pyside2 include dir: ${PYSIDE_INCLUDE_DIR}")
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
-include_directories(${Qt5Widgets_INCLUDE_DIRS})
-include_directories(${SHIBOKEN_INCLUDE_DIR})
-include_directories(${SHIBOKEN_PYTHON_INCLUDE_DIR})
-include_directories(${PYSIDE_INCLUDE_DIR})
-include_directories(${PYSIDE_INCLUDE_DIR}/QtWidgets)
-include_directories(${PYSIDE_INCLUDE_DIR}/QtGui)
-include_directories(${PYSIDE_INCLUDE_DIR}/QtCore)
-
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}")
-set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-include( GenerateExportHeader )  # Function for generation of export macros for libraries 
-set(LIBRARY_OUTPUT_PATH  "${CMAKE_BINARY_DIR}/out")
-set(EXECUTABLE_OUTPUT_PATH  "${CMAKE_BINARY_DIR}/out")
-
-# C++ source files to wrap
-set(foo_SRC mainwindow.h mainwindow.cpp)
-add_library(foo SHARED  ${foo_SRC})
-target_link_libraries(foo ${Qt5Widgets_LIBRARIES})
-generate_export_header(foo)
-
-# call shiboken2 to create the wrapping code
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/pyfoo.txt.in" "${CMAKE_CURRENT_BINARY_DIR}/pyfoo.txt" @ONLY)
-set(pyfoo_SRC
-    ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/pyfoo_python.h
-    ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/pyfoo_module_wrapper.cpp
-    ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/mainwindow_wrapper.h
-    ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/mainwindow_wrapper.cpp
-    )
-set_property(SOURCE ${pyfoo_SRC} PROPERTY SKIP_AUTOMOC ON)    
-add_custom_command( COMMAND ${SHIBOKEN_BINARY} --project-file=${CMAKE_CURRENT_BINARY_DIR}/pyfoo.txt
-                    DEPENDS ${foo_SRC}
-                    OUTPUT ${pyfoo_SRC}
-                    )
-    
-# build the python module
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo)
-add_library(pyfoo SHARED  ${pyfoo_SRC})
-target_link_libraries(pyfoo foo ${SHIBOKEN_PYTHON_LIBRARIES} ${SHIBOKEN_LIBRARY} ${PYSIDE_LIBRARY})
-if(WIN32)
-    set_property(TARGET pyfoo PROPERTY SUFFIX ".pyd")
+# Enable policy to run automoc on generated files.
+if(POLICY CMP0071)
+  cmake_policy(SET CMP0071 NEW)
 endif()
 
-# python example
-add_custom_command(     TARGET pyfoo POST_BUILD 
-                        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/example.py
-                                                         ${CMAKE_BINARY_DIR}/out/${CMAKE_CFG_INTDIR}/example.py )
+project(pyfoo)
+
+# Set CPP standard to C++11 minimum.
+set(CMAKE_CXX_STANDARD 11)
+
+# Find required Qt packages.
+find_package(Qt5 5.6 REQUIRED COMPONENTS Core Gui Widgets)
+
+# Macro to get various pyside / python include / link flags.	
+macro(pyside2_config option output_var)	
+    if(${ARGC} GREATER 2)
+        set(is_list ${ARGV2})
+    else()
+        set(is_list "")
+    endif()
+    
+    execute_process(	
+      COMMAND python "${CMAKE_SOURCE_DIR}/pyside2_config.py" ${option}	
+      OUTPUT_VARIABLE ${output_var}	
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    
+    if(is_list)	
+        string (REPLACE " " ";" ${output_var} "${${output_var}}")
+    endif()	
+endmacro()
+
+# Get relevant general paths, include paths and linker flags.
+pyside2_config(--pyside2 PYSIDE2_PATH)
+message(STATUS "pyside2 path: ${PYSIDE2_PATH}")
+set(SHIBOKEN_PATH "shiboken2")
+pyside2_config(--python-include PYTHON_INCLUDE_DIR)
+pyside2_config(--pyside2-include PYSIDE2_INCLUDE_DIR 1)
+pyside2_config(--python-link-cmake PYTHON_LINKING_DATA 1)
+pyside2_config(--pyside2-shared-libraries-cmake PYSIDE2_SHARED_LIBRARIES 1)
+
+# Get all relevant Qt include dirs, to pass them on to shiboken.
+get_property(QT_CORE_INCLUDE_DIRS TARGET Qt5::Gui PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
+get_property(QT_GUI_INCLUDE_DIRS TARGET Qt5::Widgets PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
+get_property(QT_WIDGETS_INCLUDE_DIRS TARGET Qt5::Core PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
+set(QT_INCLUDE_DIRS ${QT_CORE_INCLUDE_DIRS} ${QT_GUI_INCLUDE_DIRS} ${QT_WIDGETS_INCLUDE_DIRS})
+set(INCLUDES "")
+foreach(INCLUDE_DIR ${QT_INCLUDE_DIRS})
+    list(APPEND INCLUDES "--include-paths=${INCLUDE_DIR}")
+endforeach()
+
+# Set up the options to pass to shiboken.
+set(WRAPPED_HEADER ${CMAKE_SOURCE_DIR}/pyfoo.h)
+set(TYPESYSTEM_FILE ${CMAKE_SOURCE_DIR}/pyfoo.xml)
+
+set(SHIBOKEN_OPTIONS --generator-set=shiboken --enable-parent-ctor-heuristic
+			    --enable-pyside-extensions --enable-return-value-heuristic --use-isnull-as-nb_nonzero
+			    --avoid-protected-hack	
+			    ${INCLUDES}	
+			    --include-paths=${CMAKE_SOURCE_DIR}	
+			    --typesystem-paths=${CMAKE_SOURCE_DIR}	
+			    --typesystem-paths=${PYSIDE2_PATH}/typesystems	
+			    --output-directory=${CMAKE_CURRENT_BINARY_DIR}
+			    )
+
+# Specify which sources will be generated by shiboken, and their dependencies.
+set(GENERATED_SOURCES
+    ${CMAKE_CURRENT_BINARY_DIR}/AppLib/applib_module_wrapper.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/AppLib/mainwindow_wrapper.cpp)
+set(GENERATED_SOURCES_DEPENDENCIES
+    ${WRAPPED_HEADER}
+    ${TYPESYSTEM_FILE}
+)	
+
+# Add custom target to run shiboken.
+add_custom_command(OUTPUT ${GENERATED_SOURCES}	
+                COMMAND ${SHIBOKEN_PATH}	
+                ${SHIBOKEN_OPTIONS} ${WRAPPED_HEADER} ${TYPESYSTEM_FILE}	
+                DEPENDS ${GENERATED_SOURCES_DEPENDENCIES}	
+                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}	
+                COMMENT "Running generator for ${TYPESYSTEM_FILE}.")	
+
+# Set the CPP files.	
+set(SOURCES	
+    mainwindow.cpp	
+    ${GENERATED_SOURCES}	
+)	
+
+# We need to include the headers for the module bindings that we use.	
+set(PYSIDE2_ADDITIONAL_INCLUDES "")	
+foreach(INCLUDE_DIR ${PYSIDE2_INCLUDE_DIR})	
+    list(APPEND PYSIDE2_ADDITIONAL_INCLUDES "${INCLUDE_DIR}/QtCore")	
+    list(APPEND PYSIDE2_ADDITIONAL_INCLUDES "${INCLUDE_DIR}/QtGui")	
+    list(APPEND PYSIDE2_ADDITIONAL_INCLUDES "${INCLUDE_DIR}/QtWidgets")	
+endforeach()
+			
+# Enable rpaths so that the example can be executed from the build dir.	
+set(CMAKE_SKIP_BUILD_RPATH FALSE)	
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)	
+SET(CMAKE_INSTALL_RPATH "")	
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+# Declare executable so we can enable automoc.	
+add_executable(${PROJECT_NAME} main.cpp)            
+            
+set_property(TARGET ${PROJECT_NAME} PROPERTY AUTOMOC 1)
+
+target_sources(${PROJECT_NAME} PUBLIC ${SOURCES})            
+            
+# find_package(Shiboken2 2.0.0 REQUIRED)
+# find_package(PySide2 2.0.0 REQUIRED)
+
+
+# add_definitions(${Qt5Widgets_DEFINITIONS})
+# add_definitions(-DQT_NO_KEYWORDS)
+
+# message(STATUS "qt include dir: ${Qt5Widgets_INCLUDE_DIRS}")
+# message(STATUS "libshiboken include dir: ${SHIBOKEN_INCLUDE_DIR}")
+# message(STATUS "pyside2 include dir: ${PYSIDE_INCLUDE_DIR}")
+# include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+# include_directories(${CMAKE_CURRENT_BINARY_DIR})
+# include_directories(${Qt5Widgets_INCLUDE_DIRS})
+# include_directories(${SHIBOKEN_INCLUDE_DIR})
+# include_directories(${SHIBOKEN_PYTHON_INCLUDE_DIR})
+# include_directories(${PYSIDE_INCLUDE_DIR})
+# include_directories(${PYSIDE_INCLUDE_DIR}/QtWidgets)
+# include_directories(${PYSIDE_INCLUDE_DIR}/QtGui)
+# include_directories(${PYSIDE_INCLUDE_DIR}/QtCore)
+
+# set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# set(CMAKE_AUTOMOC ON)
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}")
+# set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+# include( GenerateExportHeader )  # Function for generation of export macros for libraries 
+# set(LIBRARY_OUTPUT_PATH  "${CMAKE_BINARY_DIR}/out")
+# set(EXECUTABLE_OUTPUT_PATH  "${CMAKE_BINARY_DIR}/out")
+
+# # C++ source files to wrap
+# set(foo_SRC mainwindow.h mainwindow.cpp)
+# add_library(foo SHARED  ${foo_SRC})
+# target_link_libraries(foo ${Qt5Widgets_LIBRARIES})
+# generate_export_header(foo)
+
+# # call shiboken2 to create the wrapping code
+# configure_file("${CMAKE_CURRENT_SOURCE_DIR}/pyfoo.txt.in" "${CMAKE_CURRENT_BINARY_DIR}/pyfoo.txt" @ONLY)
+# set(pyfoo_SRC
+    # ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/pyfoo_python.h
+    # ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/pyfoo_module_wrapper.cpp
+    # ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/mainwindow_wrapper.h
+    # ${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo/mainwindow_wrapper.cpp
+    # )
+# set_property(SOURCE ${pyfoo_SRC} PROPERTY SKIP_AUTOMOC ON)    
+# add_custom_command( COMMAND ${SHIBOKEN_BINARY} --project-file=${CMAKE_CURRENT_BINARY_DIR}/pyfoo.txt
+                    # DEPENDS ${foo_SRC}
+                    # OUTPUT ${pyfoo_SRC}
+                    # )
+    
+# # build the python module
+# include_directories(${CMAKE_CURRENT_BINARY_DIR}/wrap/pyfoo)
+# add_library(pyfoo SHARED  ${pyfoo_SRC})
+# target_link_libraries(pyfoo foo ${SHIBOKEN_PYTHON_LIBRARIES} ${SHIBOKEN_LIBRARY} ${PYSIDE_LIBRARY})
+# if(WIN32)
+    # set_property(TARGET pyfoo PROPERTY SUFFIX ".pyd")
+# endif()
+
+# # python example
+# add_custom_command(     TARGET pyfoo POST_BUILD 
+                        # COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/example.py
+                                                         # ${CMAKE_BINARY_DIR}/out/${CMAKE_CFG_INTDIR}/example.py )
+                                                         
+
